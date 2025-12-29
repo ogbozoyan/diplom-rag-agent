@@ -21,6 +21,7 @@ def setup_logging( ) -> logging.Logger:
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("langchain").setLevel(logging.INFO)
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+    logging.getLogger("pypdf._reader").setLevel(logging.INFO)
 
     return logging.getLogger("agent_rag")
 

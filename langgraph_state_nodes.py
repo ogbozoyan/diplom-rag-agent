@@ -10,9 +10,9 @@ from langchain_postgres.v2.vectorstores import PGVectorStore
 from langgraph.graph import END, START, StateGraph
 from typing_extensions import Annotated, TypedDict
 
-from logger_config import logger
 from app_config import AppConfig
 from embedding import Evidence, _clean_text
+from logger_config import logger
 from timer import timed
 
 
@@ -153,17 +153,16 @@ def answer_agent_node( state: RAGState, model ) -> dict:
 
 
 def build_graph( model, docs_vs: PGVectorStore, ctx_vs: Optional[PGVectorStore], cfg: AppConfig ):
-    g = StateGraph(RAGState)
+    graph = StateGraph(RAGState)
 
-    g.add_node("plan", lambda s: plan_node(s, model))
-    g.add_node("docs_agent", lambda s: docs_agent_node(s, docs_vs, cfg.doc_top_k))
-    g.add_node("context_agent", lambda s: context_agent_node(s, ctx_vs, cfg.ctx_top_k))
-    g.add_node("answer_agent", lambda s: answer_agent_node(s, model))
+    graph.add_node("plan", lambda s: plan_node(s, model))
+    graph.add_node("docs_agent", lambda s: docs_agent_node(s, docs_vs, cfg.doc_top_k))
+    graph.add_node("context_agent", lambda s: context_agent_node(s, ctx_vs, cfg.ctx_top_k))
+    graph.add_node("answer_agent", lambda s: answer_agent_node(s, model))
 
-    g.add_edge(START, "plan")
-    g.add_edge("plan", "docs_agent")
-    g.add_edge("docs_agent", "context_agent")
-    g.add_edge("context_agent", "answer_agent")
-    g.add_edge("answer_agent", END)
-
-    return g.compile()
+    graph.add_edge(START, "plan")
+    graph.add_edge("plan", "docs_agent")
+    graph.add_edge("docs_agent", "context_agent")
+    graph.add_edge("context_agent", "answer_agent")
+    graph.add_edge("answer_agent", END)
+    return graph.compile()

@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-from typing import Optional
+import io
+from typing import Optional, Any
 
+from PIL import Image
 from langchain.chat_models import init_chat_model
 from langchain_postgres.v2.engine import PGEngine
 from langchain_postgres.v2.vectorstores import PGVectorStore
+from langgraph.graph.state import CompiledStateGraph
 
 from app_config import AppConfig
 from embedding import init_embeddings, resolve_vector_size
@@ -17,6 +20,12 @@ from timer import timed
 # =========================
 # Entry
 # =========================
+
+def save_graph_png( graph: CompiledStateGraph[Any, Any, Any, Any] ):
+    png_bytes = graph.get_graph().draw_mermaid_png()
+    graph_img = Image.open(io.BytesIO(png_bytes))
+    graph_img.save("graph.png")
+
 
 def run( question: str ):
     cfg = AppConfig.from_env()
@@ -65,6 +74,8 @@ def run( question: str ):
 
     graph = build_graph(model = model, docs_vs = docs_vs, ctx_vs = ctx_vs, cfg = cfg)
 
+    save_graph_png(graph)
+
     state: RAGState = {
         "question": question,
         "seed_urls": [],
@@ -83,4 +94,4 @@ def run( question: str ):
 
 
 if __name__ == "__main__":
-    run("Что такое LLM и как его применяют в кибербезе?")
+    run("Как построить безопасную систему с использованием LLM, какие есть подходы ?")

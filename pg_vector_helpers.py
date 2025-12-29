@@ -14,9 +14,9 @@ from langchain_postgres.v2.vectorstores import PGVectorStore
 from psycopg import sql as psql
 from sqlalchemy.engine import make_url
 
-from logger_config import logger
 from app_config import AppConfig
 from embedding import load_documents_from_dir, split_documents
+from logger_config import logger
 from timer import timed
 
 
