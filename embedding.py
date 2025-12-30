@@ -22,6 +22,16 @@ from logger_config import logger
 from timer import timed
 
 
+@dataclass
+class Evidence:
+    source_type: Literal["web", "doc", "context"]
+    source: str
+    locator: str
+    title: Optional[str]
+    snippet: str
+    score: float
+
+
 def init_embeddings( ):
     """
     Prefer OpenAI embeddings if OPENAI_API_KEY is set.
@@ -41,6 +51,10 @@ def init_embeddings( ):
         return HuggingFaceEmbeddings(model_name = model_name)
 
 
+# =========================
+# Documents loading
+# =========================
+
 def resolve_vector_size( cfg: AppConfig, embeddings ) -> int:
     """
     Prefer VECTOR_SIZE from env (cfg.vector_size).
@@ -59,10 +73,6 @@ def resolve_vector_size( cfg: AppConfig, embeddings ) -> int:
                 "Set VECTOR_SIZE explicitly (e.g. 384 for all-MiniLM-L6-v2, 1536 for text-embedding-3-small).",
             ) from e
 
-
-# =========================
-# Documents loading
-# =========================
 
 def load_documents_from_dir( root: Path ):
     docs = []
@@ -105,6 +115,10 @@ def load_documents_from_dir( root: Path ):
     return docs
 
 
+# =========================
+# Web retrieve (optional)
+# =========================
+
 def split_documents( docs, chunk_size: int, chunk_overlap: int ):
     splitter = RecursiveCharacterTextSplitter(chunk_size = chunk_size, chunk_overlap = chunk_overlap)
     chunks = splitter.split_documents(docs)
@@ -112,10 +126,6 @@ def split_documents( docs, chunk_size: int, chunk_overlap: int ):
     logger.info("Split into chunks: %d (chunk_size=%d overlap=%d)", len(chunks), chunk_size, chunk_overlap)
     return chunks
 
-
-# =========================
-# Web retrieve (optional)
-# =========================
 
 def _clean_text( s: str ) -> str:
     return re.sub(r"\s+", " ", s or "").strip()
@@ -137,16 +147,6 @@ def fetch_url_text( url: str, timeout_sec: int = 15 ) -> str:
         return _clean_text(soup.get_text(" "))
 
     return _clean_text(re.sub(r"<[^>]+>", " ", html))
-
-
-@dataclass
-class Evidence:
-    source_type: Literal["web", "doc", "context"]
-    source: str
-    locator: str
-    title: Optional[str]
-    snippet: str
-    score: float
 
 
 def web_retrieve_evidence(

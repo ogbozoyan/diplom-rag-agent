@@ -74,7 +74,7 @@ def docs_agent_node( state: RAGState, docs_vs: PGVectorStore, top_k: int ) -> di
             ),
         )
 
-    logger.info("Docs evidence=%d", len(out))
+    logger.info("Docs evidence=%d", out)
     return { "doc_evidence": out }
 
 
@@ -101,7 +101,7 @@ def context_agent_node( state: RAGState, ctx_vs: Optional[PGVectorStore], top_k:
             ),
         )
 
-    logger.info("Context evidence=%d", len(out))
+    logger.info("Context evidence=%d", out)
     return { "ctx_evidence": out }
 
 

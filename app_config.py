@@ -11,39 +11,8 @@ from typing import Optional
 # --- Silence HF tokenizers fork warning (best practice) ---
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
+
 # --- Optional .env support ---
-try:
-    from dotenv import load_dotenv  # uv add python-dotenv
-
-    load_dotenv()
-except Exception:
-    pass
-
-# Optional PPTX loader (unstructured)
-try:
-    from langchain_community.document_loaders import UnstructuredPowerPointLoader
-
-    HAS_PPTX = True
-except Exception:
-    HAS_PPTX = False
-
-# Web search tool (optional)
-try:
-    from langchain_community.tools import DuckDuckGoSearchResults
-
-    HAS_DDG = True
-except Exception:
-    HAS_DDG = False
-
-# Simple HTML -> text
-try:
-    from bs4 import BeautifulSoup
-
-    HAS_BS4 = True
-except Exception:
-    HAS_BS4 = False
-
-
 @dataclass(frozen = True)
 class AppConfig:
     docs_dir: Path
@@ -122,3 +91,36 @@ class AppConfig:
             temperature = temperature,
             uuid_namespace = ns,
         )
+
+
+try:
+    from dotenv import load_dotenv  # uv add python-dotenv
+
+    load_dotenv()
+except Exception:
+    pass
+# Optional PPTX loader (unstructured)
+
+try:
+    from langchain_community.document_loaders import UnstructuredPowerPointLoader
+
+    HAS_PPTX = True
+except Exception:
+    HAS_PPTX = False
+# Web search tool (optional)
+
+try:
+    from langchain_community.tools import DuckDuckGoSearchResults
+
+    HAS_DDG = True
+except Exception:
+    HAS_DDG = False
+# Simple HTML -> text
+
+
+try:
+    from bs4 import BeautifulSoup
+
+    HAS_BS4 = True
+except Exception:
+    HAS_BS4 = False
