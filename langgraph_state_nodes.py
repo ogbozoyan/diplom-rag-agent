@@ -3,11 +3,13 @@
 # =========================
 import json
 import operator
-from typing import Optional
+from typing import Optional, Any
 
 from langchain.messages import HumanMessage, SystemMessage
+from langchain_core.language_models import BaseChatModel
 from langchain_postgres.v2.vectorstores import PGVectorStore
 from langgraph.graph import END, START, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 from typing_extensions import Annotated, TypedDict
 
 from app_config import AppConfig
@@ -29,7 +31,7 @@ class RAGState(TypedDict):
     errors: Annotated[list[str], operator.add]
 
 
-def plan_node( state: RAGState, model ) -> dict:
+def plan_node( state: RAGState, model: BaseChatModel ) -> dict:
     q = state["question"]
     prompt = (
         "Generate 2-5 short search query variants for the user question.\n"
@@ -39,10 +41,10 @@ def plan_node( state: RAGState, model ) -> dict:
         "- Output JSON array of strings ONLY\n\n"
         f"Question: {q}"
     )
-    resp = model.invoke([SystemMessage(content = prompt)])
-    text_ = resp.content if hasattr(resp, "content") else str(resp)
+    resp: object = model.invoke([SystemMessage(content = prompt)])
+    text_: str | Any = resp.content if hasattr(resp, "content") else str(resp)
     try:
-        queries = json.loads(text_)
+        queries: object = json.loads(text_)
         if not isinstance(queries, list):
             queries = [q]
         queries = [str(x) for x in queries][:5]
@@ -74,7 +76,7 @@ def docs_agent_node( state: RAGState, docs_vs: PGVectorStore, top_k: int ) -> di
             ),
         )
 
-    logger.info("Docs evidence=%d", out)
+    logger.info("Docs evidence=%s", json.dumps([e.to_json() for e in out], ensure_ascii = False))
     return { "doc_evidence": out }
 
 
@@ -101,7 +103,7 @@ def context_agent_node( state: RAGState, ctx_vs: Optional[PGVectorStore], top_k:
             ),
         )
 
-    logger.info("Context evidence=%d", out)
+    logger.info("Context evidence=%s", json.dumps([e.model_dump() for e in out], ensure_ascii = False, default = str))
     return { "ctx_evidence": out }
 
 
@@ -152,8 +154,13 @@ def answer_agent_node( state: RAGState, model ) -> dict:
     return { "final_answer": answer_text }
 
 
-def build_graph( model, docs_vs: PGVectorStore, ctx_vs: Optional[PGVectorStore], cfg: AppConfig ):
-    graph = StateGraph(RAGState)
+def build_graph(
+        model: BaseChatModel,
+        docs_vs: PGVectorStore,
+        ctx_vs: Optional[PGVectorStore],
+        cfg: AppConfig,
+) -> CompiledStateGraph[Any, Any, Any, Any]:
+    graph: StateGraph | Any = StateGraph(RAGState)
 
     graph.add_node("plan", lambda s: plan_node(s, model))
     graph.add_node("docs_agent", lambda s: docs_agent_node(s, docs_vs, cfg.doc_top_k))

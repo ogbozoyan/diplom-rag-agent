@@ -6,12 +6,14 @@ from __future__ import annotations
 import hashlib
 import uuid
 from pathlib import Path
-from typing import Sequence
+from typing import Sequence, Any
 
 import psycopg
+from langchain_core.documents import Document
 from langchain_postgres.v2.engine import PGEngine
 from langchain_postgres.v2.vectorstores import PGVectorStore
 from psycopg import sql as psql
+from sqlalchemy import URL
 from sqlalchemy.engine import make_url
 
 from app_config import AppConfig
@@ -39,7 +41,7 @@ def pg_table_has_rows( pg_dsn: str, schema: str, table: str ) -> bool:
             return cur.fetchone() is not None
 
 
-def chunk_uuid( cfg: AppConfig, d, chunk_id: int ) -> str:
+def chunk_uuid( cfg: AppConfig, d: object, chunk_id: int ) -> str:
     """
     Stable UUID for a chunk.
     If you want "update-in-place" when content changes, don't include content hash.
@@ -77,7 +79,7 @@ def fetch_existing_ids( pg_dsn: str, schema: str, table: str, ids: Sequence[str]
 def ensure_pgvector_store(
         cfg: AppConfig,
         pg_engine: PGEngine,
-        embeddings,
+        embeddings: object,
         table_name: str,
         vector_size: int,
         *,
@@ -115,51 +117,50 @@ def psycopg_dsn_from_sqlalchemy( sa_url: str ) -> str:
     sa_url example: postgresql+psycopg://user:pass@host:port/db
     psycopg needs:  postgresql://user:pass@host:port/db
     """
-    u = make_url(sa_url)
-    u2 = u.set(drivername = "postgresql")
+    u: URL = make_url(sa_url)
+    u2: URL = u.set(drivername = "postgresql")
     return u2.render_as_string(hide_password = False)
 
 
 def ingest_incremental(
         cfg: AppConfig,
         pg_dsn: str,
-        pg_engine: PGEngine,
         store: PGVectorStore,
         docs_dir: Path,
         table_name: str,
         *,
         reindex: bool,
-):
+) -> None:
     with timed(f"ingest:{table_name}"):
-        raw = load_documents_from_dir(docs_dir)
-        chunks = split_documents(raw, cfg.chunk_size, cfg.chunk_overlap)
+        raw_documents_from_disk: list[Any] = load_documents_from_dir(docs_dir)
+        split_chunks: list[Document] = split_documents(raw_documents_from_disk, cfg.chunk_size, cfg.chunk_overlap)
 
         ids: list[str] = []
-        for i, d in enumerate(chunks):
+        for i, d in enumerate(split_chunks):
             d.metadata["chunk_id"] = i
             ids.append(chunk_uuid(cfg, d, i))
 
         if reindex:
-            logger.info("REINDEX=true -> inserting all chunks=%d", len(chunks))
-            store.add_documents(chunks, ids = ids)
+            logger.info("REINDEX=true -> inserting all split_chunks=%d", len(split_chunks))
+            store.add_documents(split_chunks, ids = ids)
             return
 
         # incremental: insert only missing ids
         if not pg_table_exists(pg_dsn, cfg.schema, table_name):
-            logger.info("Table not found yet, inserting all chunks=%d", len(chunks))
-            store.add_documents(chunks, ids = ids)
+            logger.info("Table not found yet, inserting all split_chunks=%d", len(split_chunks))
+            store.add_documents(split_chunks, ids = ids)
             return
 
         existing = fetch_existing_ids(pg_dsn, cfg.schema, table_name, ids)
         missing_docs = []
         missing_ids = []
-        for d, id_ in zip(chunks, ids):
+        for d, id_ in zip(split_chunks, ids):
             if id_ not in existing:
                 missing_docs.append(d)
                 missing_ids.append(id_)
 
-        logger.info("Chunks total=%d existing=%d missing=%d", len(chunks), len(existing), len(missing_docs))
+        logger.info("Chunks total=%d existing=%d missing=%d", len(split_chunks), len(existing), len(missing_docs))
         if missing_docs:
             store.add_documents(missing_docs, ids = missing_ids)
         else:
-            logger.info("No new chunks to ingest")
+            logger.info("No new split_chunks to ingest")

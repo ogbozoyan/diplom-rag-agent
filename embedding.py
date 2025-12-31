@@ -6,7 +6,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal, Optional, Any
 
 import requests
 from bs4 import BeautifulSoup
@@ -14,6 +14,9 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.document_loaders import UnstructuredPowerPointLoader
 from langchain_community.tools import DuckDuckGoSearchResults
 from langchain_community.vectorstores.utils import filter_complex_metadata
+from langchain_core.documents import Document
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app_config import AppConfig, HAS_BS4, HAS_DDG
@@ -31,8 +34,18 @@ class Evidence:
     snippet: str
     score: float
 
+    def to_json( self ):
+        return {
+            "source_type": self.source_type,
+            "source": self.source,
+            "locator": self.locator,
+            "title": self.title,
+            "snippet": self.snippet[:200] + "..." if len(self.snippet) > 200 else self.snippet,
+            "score": self.score,
+        }
 
-def init_embeddings( ):
+
+def init_embeddings( ) -> OpenAIEmbeddings | HuggingFaceEmbeddings:
     """
     Prefer OpenAI embeddings if OPENAI_API_KEY is set.
     Otherwise use local HuggingFace embeddings (sentence-transformers).
@@ -55,7 +68,7 @@ def init_embeddings( ):
 # Documents loading
 # =========================
 
-def resolve_vector_size( cfg: AppConfig, embeddings ) -> int:
+def resolve_vector_size( cfg: AppConfig, embeddings: object ) -> int:
     """
     Prefer VECTOR_SIZE from env (cfg.vector_size).
     If it's 0, probe with a single embed_query (OpenAI = extra API call).
@@ -74,7 +87,7 @@ def resolve_vector_size( cfg: AppConfig, embeddings ) -> int:
             ) from e
 
 
-def load_documents_from_dir( root: Path ):
+def load_documents_from_dir( root: Path ) -> list[Any]:
     docs = []
     if not root.exists():
         logger.warning("Docs dir does not exist: %s", root)
@@ -119,9 +132,11 @@ def load_documents_from_dir( root: Path ):
 # Web retrieve (optional)
 # =========================
 
-def split_documents( docs, chunk_size: int, chunk_overlap: int ):
-    splitter = RecursiveCharacterTextSplitter(chunk_size = chunk_size, chunk_overlap = chunk_overlap)
-    chunks = splitter.split_documents(docs)
+def split_documents( docs: object, chunk_size: int, chunk_overlap: int ) -> list[Document]:
+    splitter: RecursiveCharacterTextSplitter = RecursiveCharacterTextSplitter(
+        chunk_size = chunk_size, chunk_overlap = chunk_overlap,
+    )
+    chunks: list[Document] = splitter.split_documents(docs)
     chunks = filter_complex_metadata(chunks)
     logger.info("Split into chunks: %d (chunk_size=%d overlap=%d)", len(chunks), chunk_size, chunk_overlap)
     return chunks
