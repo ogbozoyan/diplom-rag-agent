@@ -25,3 +25,7 @@ export LANGSMITH_API_KEY=<LANGSMITH_API_KEY>
 export LANGSMITH_PROJECT=default
 export OPENAI_API_KEY=<OPENAI_API_KEY>
 ```
+
+```bash
+uv run python main.py 
+```

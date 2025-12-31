@@ -9,7 +9,7 @@ from logging import Logger
 
 
 def setup_logging( ) -> logging.Logger:
-    level = os.getenv("LOG_LEVEL", "INFO").upper()
+    level = os.getenv("LOG_LEVEL", "DEBUG").upper()
     fmt = os.getenv(
         "LOG_FORMAT",
         "%(asctime)s %(levelname)s %(name)s - %(message)s",

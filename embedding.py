@@ -11,9 +11,13 @@ from typing import Literal, Optional
 import requests
 from bs4 import BeautifulSoup
 from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import UnstructuredMarkdownLoader
 from langchain_community.document_loaders import UnstructuredPowerPointLoader
 from langchain_community.tools import DuckDuckGoSearchResults
 from langchain_community.vectorstores.utils import filter_complex_metadata
+from langchain_core.documents import Document
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app_config import AppConfig, HAS_BS4, HAS_DDG
@@ -31,8 +35,18 @@ class Evidence:
     snippet: str
     score: float
 
+    def to_json( self ):
+        return {
+            "source_type": self.source_type,
+            "source": self.source,
+            "locator": self.locator,
+            "title": self.title,
+            "snippet": self.snippet[:200] + "..." if len(self.snippet) > 200 else self.snippet,
+            "score": self.score,
+        }
 
-def init_embeddings( ):
+
+def init_embeddings( ) -> OpenAIEmbeddings | HuggingFaceEmbeddings:
     """
     Prefer OpenAI embeddings if OPENAI_API_KEY is set.
     Otherwise use local HuggingFace embeddings (sentence-transformers).
@@ -55,7 +69,7 @@ def init_embeddings( ):
 # Documents loading
 # =========================
 
-def resolve_vector_size( cfg: AppConfig, embeddings ) -> int:
+def resolve_vector_size( cfg: AppConfig, embeddings: object ) -> int:
     """
     Prefer VECTOR_SIZE from env (cfg.vector_size).
     If it's 0, probe with a single embed_query (OpenAI = extra API call).
@@ -74,54 +88,78 @@ def resolve_vector_size( cfg: AppConfig, embeddings ) -> int:
             ) from e
 
 
-def load_documents_from_dir( root: Path ):
-    docs = []
+def load_documents_from_dir( root: Path ) -> list[Document]:
+    result_docs: list[Document] = []
     if not root.exists():
         logger.warning("Docs dir does not exist: %s", root)
-        return docs
+        return result_docs
 
-    for p in sorted(root.glob("**/*")):
-        if p.is_dir():
+    for path in sorted(root.glob("**/*")):
+        if path.is_dir():
             continue
-
-        suffix = p.suffix.lower()
+        path_suffix: str = path.suffix.lower()
         try:
-            if suffix == ".pdf":
-                loader = PyPDFLoader(str(p))
-                loaded = loader.load()
-                for d in loaded:
-                    d.metadata["source_file"] = str(p)
-                    page = d.metadata.get("page", None)
+            string_path = str(path)
+            if path_suffix == ".pdf":
+                logger.info("Reading PDF file: %s", path)
+                loader: PyPDFLoader = PyPDFLoader(string_path)
+                loaded: list[Document] = loader.load()
+                for doc in loaded:
+                    doc.metadata["source_file"] = string_path
+                    page = doc.metadata.get("page", None)
                     if page is not None:
-                        d.metadata["page_human"] = int(page) + 1
-                docs.extend(loaded)
+                        logger.debug("AVAILABLE PDF METADATA %s for file %s", doc.metadata, string_path)
+                        doc.metadata["page_human"] = int(page) + 1
+                result_docs.extend(loaded)
 
-            elif suffix == ".pptx":
+            elif path_suffix == ".pptx":
                 if not HAS_PPTX:
-                    logger.warning("Skip PPTX (unstructured not installed): %s", p)
+                    logger.warning("Skip PPTX (unstructured not installed): %s", path)
                     continue
-                loader = UnstructuredPowerPointLoader(str(p), mode = "elements")
-                loaded = loader.load()
-                for d in loaded:
-                    d.metadata["source_file"] = str(p)
-                docs.extend(loaded)
+                logger.info("Reading PPTX file: %s", path)
+                loader: UnstructuredPowerPointLoader = UnstructuredPowerPointLoader(string_path, mode = "elements")
+                loaded: list[Document] = loader.load()
+                for doc in loaded:
+                    logger.debug("AVAILABLE PPTX METADATA %s for file %s", doc.metadata, string_path)
+                    doc.metadata["source_file"] = string_path
+                result_docs.extend(loaded)
+
+            elif path_suffix == ".txt":
+                with open(path, 'r', encoding = 'utf-8') as file:
+                    logger.info("Reading txt file: %s", path)
+                    doc = Document(page_content = file.read(), metadata = { "source_file": string_path })
+
+                    logger.debug("AVAILABLE TXT METADATA %s for file %s", doc.metadata, string_path)
+                    result_docs.append(doc)
+
+            elif path_suffix == ".md":
+                logger.info("Reading markdown file: %s", path)
+
+                loader: UnstructuredMarkdownLoader = UnstructuredMarkdownLoader(string_path, mode = "elements")
+                loaded: list[Document] = loader.load()
+                for doc in loaded:
+                    logger.debug("AVAILABLE MARKDOWN METADATA %s for file %s", doc.metadata, string_path)
+                    doc.metadata["source_file"] = string_path
+                result_docs.extend(loaded)
 
             else:
                 continue
         except Exception:
-            logger.exception("Failed to load file: %s", p)
+            logger.exception("Failed to load file: %s", path)
 
-    logger.info("Loaded documents: %d (from %s)", len(docs), root)
-    return docs
+    logger.info("Loaded documents: %d (from %s)", len(result_docs), root)
+    return result_docs
 
 
 # =========================
 # Web retrieve (optional)
 # =========================
 
-def split_documents( docs, chunk_size: int, chunk_overlap: int ):
-    splitter = RecursiveCharacterTextSplitter(chunk_size = chunk_size, chunk_overlap = chunk_overlap)
-    chunks = splitter.split_documents(docs)
+def split_documents( docs: list[Document], chunk_size: int, chunk_overlap: int ) -> list[Document]:
+    splitter: RecursiveCharacterTextSplitter = RecursiveCharacterTextSplitter(
+        chunk_size = chunk_size, chunk_overlap = chunk_overlap,
+    )
+    chunks: list[Document] = splitter.split_documents(docs)
     chunks = filter_complex_metadata(chunks)
     logger.info("Split into chunks: %d (chunk_size=%d overlap=%d)", len(chunks), chunk_size, chunk_overlap)
     return chunks

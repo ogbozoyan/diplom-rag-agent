@@ -60,10 +60,10 @@ class AppConfig:
         ctx_top_k = int(os.getenv("CTX_TOP_K", "6"))
 
         vector_size = int(os.getenv("VECTOR_SIZE", "0"))  # set this to avoid probe for OpenAI
-        reindex = os.getenv("REINDEX", "false").lower() == "true"
+        reindex = os.getenv("REINDEX", "true").lower() == "true"
 
-        chat_model = os.getenv("CHAT_MODEL", "openai:gpt-5-mini-2025-08-07")
-        temperature = float(os.getenv("TEMP", "0"))
+        chat_model = os.getenv("CHAT_MODEL", "openai:gpt-5-mini")
+        temperature = float(os.getenv("TEMP", "0.5"))
 
         # фиксируем namespace: если поменять — ids изменятся и будет дубляж
         ns_raw = os.getenv("UUID_NAMESPACE", "6ba7b811-9dad-11d1-80b4-00c04fd430c8")  # NAMESPACE_URL default
