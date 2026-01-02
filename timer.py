@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import logging
 import time
 
-from logger_config import logger
+_log = logging.getLogger(__name__)
 
 
 class timed:
@@ -12,13 +13,13 @@ class timed:
 
     def __enter__( self ):
         self.t0 = time.time()
-        logger.info("%s: start", self.label)
+        _log.info("%s: start", self.label)
         return self
 
     def __exit__( self, exc_type, exc, tb ):
         dt = time.time() - self.t0
         if exc:
-            logger.exception("%s: failed in %.3fs", self.label, dt)
+            _log.exception("%s: failed in %.3fs", self.label, dt)
         else:
-            logger.info("%s: done in %.3fs", self.label, dt)
+            _log.info("%s: done in %.3fs", self.label, dt)
         return False

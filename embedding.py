@@ -1,7 +1,7 @@
 # =========================
 # Embeddings
 # =========================
-
+import logging
 import os
 import re
 from dataclasses import dataclass
@@ -22,8 +22,9 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app_config import AppConfig, HAS_BS4, HAS_DDG
 from app_config import HAS_PPTX
-from logger_config import logger
 from timer import timed
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -55,13 +56,13 @@ def init_embeddings( ) -> OpenAIEmbeddings | HuggingFaceEmbeddings:
         from langchain_openai import OpenAIEmbeddings
 
         model = os.getenv("EMBED_MODEL", "text-embedding-3-small")
-        logger.info("Embeddings: OpenAI model=%s", model)
+        _log.info("Embeddings: OpenAI model=%s", model)
         return OpenAIEmbeddings(model = model)
     else:
         from langchain_huggingface import HuggingFaceEmbeddings
 
         model_name = os.getenv("HF_EMBED_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
-        logger.info("Embeddings: HuggingFace model=%s", model_name)
+        _log.info("Embeddings: HuggingFace model=%s", model_name)
         return HuggingFaceEmbeddings(model_name = model_name)
 
 
@@ -91,7 +92,7 @@ def resolve_vector_size( cfg: AppConfig, embeddings: object ) -> int:
 def load_documents_from_dir( root: Path ) -> list[Document]:
     result_docs: list[Document] = []
     if not root.exists():
-        logger.warning("Docs dir does not exist: %s", root)
+        _log.warning("Docs dir does not exist: %s", root)
         return result_docs
 
     for path in sorted(root.glob("**/*")):
@@ -101,53 +102,53 @@ def load_documents_from_dir( root: Path ) -> list[Document]:
         try:
             string_path = str(path)
             if path_suffix == ".pdf":
-                logger.info("Reading PDF file: %s", path)
+                _log.info("Reading PDF file: %s", path)
                 loader: PyPDFLoader = PyPDFLoader(string_path)
                 loaded: list[Document] = loader.load()
                 for doc in loaded:
                     doc.metadata["source_file"] = string_path
                     page = doc.metadata.get("page", None)
                     if page is not None:
-                        logger.debug("AVAILABLE PDF METADATA %s for file %s", doc.metadata, string_path)
+                        _log.debug("AVAILABLE PDF METADATA %s for file %s", doc.metadata, string_path)
                         doc.metadata["page_human"] = int(page) + 1
                 result_docs.extend(loaded)
 
             elif path_suffix == ".pptx":
                 if not HAS_PPTX:
-                    logger.warning("Skip PPTX (unstructured not installed): %s", path)
+                    _log.warning("Skip PPTX (unstructured not installed): %s", path)
                     continue
-                logger.info("Reading PPTX file: %s", path)
+                _log.info("Reading PPTX file: %s", path)
                 loader: UnstructuredPowerPointLoader = UnstructuredPowerPointLoader(string_path, mode = "elements")
                 loaded: list[Document] = loader.load()
                 for doc in loaded:
-                    logger.debug("AVAILABLE PPTX METADATA %s for file %s", doc.metadata, string_path)
+                    _log.debug("AVAILABLE PPTX METADATA %s for file %s", doc.metadata, string_path)
                     doc.metadata["source_file"] = string_path
                 result_docs.extend(loaded)
 
             elif path_suffix == ".txt":
                 with open(path, 'r', encoding = 'utf-8') as file:
-                    logger.info("Reading txt file: %s", path)
+                    _log.info("Reading txt file: %s", path)
                     doc = Document(page_content = file.read(), metadata = { "source_file": string_path })
 
-                    logger.debug("AVAILABLE TXT METADATA %s for file %s", doc.metadata, string_path)
+                    _log.debug("AVAILABLE TXT METADATA %s for file %s", doc.metadata, string_path)
                     result_docs.append(doc)
 
             elif path_suffix == ".md":
-                logger.info("Reading markdown file: %s", path)
+                _log.info("Reading markdown file: %s", path)
 
                 loader: UnstructuredMarkdownLoader = UnstructuredMarkdownLoader(string_path, mode = "elements")
                 loaded: list[Document] = loader.load()
                 for doc in loaded:
-                    logger.debug("AVAILABLE MARKDOWN METADATA %s for file %s", doc.metadata, string_path)
+                    _log.debug("AVAILABLE MARKDOWN METADATA %s for file %s", doc.metadata, string_path)
                     doc.metadata["source_file"] = string_path
                 result_docs.extend(loaded)
 
             else:
                 continue
         except Exception:
-            logger.exception("Failed to load file: %s", path)
+            _log.exception("Failed to load file: %s", path)
 
-    logger.info("Loaded documents: %d (from %s)", len(result_docs), root)
+    _log.info("Loaded documents: %d (from %s)", len(result_docs), root)
     return result_docs
 
 
@@ -161,7 +162,7 @@ def split_documents( docs: list[Document], chunk_size: int, chunk_overlap: int )
     )
     chunks: list[Document] = splitter.split_documents(docs)
     chunks = filter_complex_metadata(chunks)
-    logger.info("Split into chunks: %d (chunk_size=%d overlap=%d)", len(chunks), chunk_size, chunk_overlap)
+    _log.info("Split into chunks: %d (chunk_size=%d overlap=%d)", len(chunks), chunk_size, chunk_overlap)
     return chunks
 
 
@@ -191,7 +192,7 @@ def web_retrieve_evidence(
         question: str, seed_urls: list[str], max_search_results: int = 5, max_pages_fetch: int = 4,
 ) -> list[Evidence]:
     if not HAS_DDG and not seed_urls:
-        logger.warning("Web disabled: DuckDuckGo tool not available and no seed_urls provided")
+        _log.warning("Web disabled: DuckDuckGo tool not available and no seed_urls provided")
         return []
 
     urls: list[str] = []
@@ -209,7 +210,7 @@ def web_retrieve_evidence(
             if len(txt) >= 200:
                 page_texts.append((u, txt))
         except Exception:
-            logger.exception("Failed to fetch url: %s", u)
+            _log.exception("Failed to fetch url: %s", u)
 
     out: list[Evidence] = []
     for url, txt in page_texts:

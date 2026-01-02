@@ -2,6 +2,7 @@
 # LangGraph state & nodes
 # =========================
 import json
+import logging
 import operator
 from typing import Optional, Any
 
@@ -14,8 +15,9 @@ from typing_extensions import Annotated, TypedDict
 
 from app_config import AppConfig
 from embedding import Evidence, _clean_text
-from logger_config import logger
 from timer import timed
+
+_log = logging.getLogger(__name__)
 
 
 class RAGState(TypedDict):
@@ -51,7 +53,7 @@ def plan_node( state: RAGState, model: BaseChatModel ) -> dict:
     except Exception:
         queries = [q]
 
-    logger.info("Plan queries=%s", queries)
+    _log.info("Plan queries=%s", queries)
     return { "queries": queries }
 
 
@@ -76,7 +78,7 @@ def docs_agent_node( state: RAGState, docs_vs: PGVectorStore, top_k: int ) -> di
             ),
         )
 
-    logger.info("Docs evidence=%s", json.dumps([e.to_json() for e in out], ensure_ascii = False))
+    _log.info("Docs evidence=%s", json.dumps([e.to_json() for e in out], ensure_ascii = False))
     return { "doc_evidence": out }
 
 
@@ -103,7 +105,7 @@ def context_agent_node( state: RAGState, ctx_vs: Optional[PGVectorStore], top_k:
             ),
         )
 
-    logger.info("Context evidence=%s", json.dumps([e.model_dump() for e in out], ensure_ascii = False, default = str))
+    _log.info("Context evidence=%s", json.dumps([e.model_dump() for e in out], ensure_ascii = False, default = str))
     return { "ctx_evidence": out }
 
 

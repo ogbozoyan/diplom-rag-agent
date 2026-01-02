@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import logging
 from typing import Optional, Any
 
 from PIL import Image
@@ -15,9 +16,13 @@ from langgraph.graph.state import CompiledStateGraph
 from app_config import AppConfig
 from embedding import init_embeddings, resolve_vector_size
 from langgraph_state_nodes import build_graph, RAGState
-from logger_config import logger
+from logger_config import init_logging
 from pg_vector_helpers import psycopg_dsn_from_sqlalchemy, ensure_pgvector_store, ingest_incremental
 from timer import timed
+
+init_logging()
+
+_log = logging.getLogger(__name__)
 
 
 # =========================
@@ -32,7 +37,7 @@ def save_graph_png( graph: CompiledStateGraph[Any, Any, Any, Any] ):
 
 def run( question: str ):
     cfg = AppConfig.from_env()
-    logger.info(
+    _log.info(
         "Config: docs_dir=%s context_dir=%s reindex=%s enable_web=%s",
         cfg.docs_dir, cfg.context_dir, cfg.reindex, cfg.enable_web,
     )
@@ -51,7 +56,7 @@ def run( question: str ):
         pg_engine: PGEngine = PGEngine.from_connection_string(cfg.pg_url)
 
     pg_dsn: str = psycopg_dsn_from_sqlalchemy(cfg.pg_url)
-    logger.info("Postgres DSN resolved (driver stripped)")
+    _log.info("Postgres DSN resolved (driver stripped)")
 
     # docs store
     docs_vs: PGVectorStore = ensure_pgvector_store(
@@ -69,7 +74,7 @@ def run( question: str ):
         )
         ingest_incremental(cfg, pg_dsn, docs_vs, cfg.docs_dir, docs_table, reindex = cfg.reindex)
     else:
-        logger.info("Context disabled (dir missing): %s", cfg.context_dir)
+        _log.info("Context disabled (dir missing): %s", cfg.context_dir)
 
     # LLM
     with timed("init_chat_model"):
@@ -99,6 +104,6 @@ def run( question: str ):
 if __name__ == "__main__":
     run(
         """
-            какие браузерные атаки существуют ?
+            какие браузерные атаки существуют ? comet
             """,
     )

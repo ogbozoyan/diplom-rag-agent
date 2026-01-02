@@ -4,12 +4,14 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import uuid
 from pathlib import Path
-from typing import Sequence, Any
+from typing import Sequence
 
 import psycopg
 from langchain_core.documents import Document
+from langchain_core.embeddings import Embeddings
 from langchain_postgres.v2.engine import PGEngine
 from langchain_postgres.v2.vectorstores import PGVectorStore
 from psycopg import sql as psql
@@ -18,8 +20,9 @@ from sqlalchemy.engine import make_url
 
 from app_config import AppConfig
 from embedding import load_documents_from_dir, split_documents
-from logger_config import logger
 from timer import timed
+
+_log = logging.getLogger(__name__)
 
 
 def pg_table_exists( pg_dsn: str, schema: str, table: str ) -> bool:
@@ -79,7 +82,7 @@ def fetch_existing_ids( pg_dsn: str, schema: str, table: str, ids: Sequence[str]
 def ensure_pgvector_store(
         cfg: AppConfig,
         pg_engine: PGEngine,
-        embeddings: object,
+        embeddings: Embeddings,
         table_name: str,
         vector_size: int,
         *,
@@ -89,7 +92,7 @@ def ensure_pgvector_store(
     exists = pg_table_exists(pg_dsn, cfg.schema, table_name)
 
     if reindex:
-        logger.warning("REINDEX=true -> will drop & recreate table %s.%s", cfg.schema, table_name)
+        _log.warning("REINDEX=true -> will drop & recreate table %s.%s", cfg.schema, table_name)
 
     if (not exists) or reindex:
         pg_engine.init_vectorstore_table(
@@ -100,9 +103,9 @@ def ensure_pgvector_store(
             id_column = "langchain_id",
             store_metadata = True,
         )
-        logger.info("Table ensured: %s.%s (vector_size=%d)", cfg.schema, table_name, vector_size)
+        _log.info("Table ensured: %s.%s (vector_size=%d)", cfg.schema, table_name, vector_size)
     else:
-        logger.info("Table exists: %s.%s (skip create)", cfg.schema, table_name)
+        _log.info("Table exists: %s.%s (skip create)", cfg.schema, table_name)
 
     return PGVectorStore.create_sync(
         engine = pg_engine,
@@ -141,13 +144,13 @@ def ingest_incremental(
             ids.append(chunk_uuid(config, document, i))
 
         if reindex:
-            logger.info("REINDEX=true -> inserting all split_chunks=%d", len(split_chunks))
+            _log.info("REINDEX=true -> inserting all split_chunks=%d", len(split_chunks))
             store.add_documents(split_chunks, ids = ids)
             return
 
         # incremental: insert only missing ids
         if not pg_table_exists(pg_dsn, config.schema, table_name):
-            logger.info("Table not found yet, inserting all split_chunks=%d", len(split_chunks))
+            _log.info("Table not found yet, inserting all split_chunks=%d", len(split_chunks))
             store.add_documents(split_chunks, ids = ids)
             return
 
@@ -159,8 +162,8 @@ def ingest_incremental(
                 missing_docs.append(document)
                 missing_ids.append(id_)
 
-        logger.info("Chunks total=%d existing=%d missing=%d", len(split_chunks), len(existing), len(missing_docs))
+        _log.info("Chunks total=%d existing=%d missing=%d", len(split_chunks), len(existing), len(missing_docs))
         if missing_docs:
             store.add_documents(missing_docs, ids = missing_ids)
         else:
-            logger.info("No new split_chunks to ingest")
+            _log.info("No new split_chunks to ingest")
