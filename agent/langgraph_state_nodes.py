@@ -13,11 +13,21 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from typing_extensions import Annotated, TypedDict
 
-from app_config import AppConfig
-from embedding import Evidence, _clean_text
-from timer import timed
+from config.app_config import AppConfig
+from embedding.embedding import Evidence, clean_text
+from helper.timer_helper import timed
 
 _log = logging.getLogger(__name__)
+
+PLAN_NODE = "plan"
+DOCS_AGENT_NODE = "docs_agent"
+CONTEXT_AGENT_NOTE = "context_agent"
+ANSWER_AGENT_NODE = "answer_agent"
+GRAPH_NODES = [
+    PLAN_NODE, DOCS_AGENT_NODE, CONTEXT_AGENT_NOTE, ANSWER_AGENT_NODE,
+]
+
+_log.info("Available nodes: %s", GRAPH_NODES)
 
 
 class RAGState(TypedDict):
@@ -73,7 +83,7 @@ def docs_agent_node( state: RAGState, docs_vs: PGVectorStore, top_k: int ) -> di
                 source = str(src),
                 locator = locator,
                 title = None,
-                snippet = _clean_text(doc.page_content)[:900],
+                snippet = clean_text(doc.page_content)[:900],
                 score = float(score),
             ),
         )
@@ -100,12 +110,12 @@ def context_agent_node( state: RAGState, ctx_vs: Optional[PGVectorStore], top_k:
                 source = str(src),
                 locator = str(locator),
                 title = None,
-                snippet = _clean_text(doc.page_content)[:900],
+                snippet = clean_text(doc.page_content)[:900],
                 score = float(score),
             ),
         )
 
-    _log.info("Context evidence=%s", json.dumps([e.model_dump() for e in out], ensure_ascii = False, default = str))
+    _log.info("Context evidence=%s", json.dumps([e.to_json() for e in out], ensure_ascii = False, default = str))
     return { "ctx_evidence": out }
 
 
@@ -125,6 +135,7 @@ def answer_agent_node( state: RAGState, model ) -> dict:
         )
     evidence_block = "\n".join(lines)
 
+    # TODO: change to PromptTemplate
     system = (
         "You are a RAG assistant. Answer ONLY from the provided evidence.\n"
         "Hard rules:\n"
@@ -164,14 +175,15 @@ def build_graph(
 ) -> CompiledStateGraph[Any, Any, Any, Any]:
     graph: StateGraph | Any = StateGraph(RAGState)
 
-    graph.add_node("plan", lambda s: plan_node(s, model))
-    graph.add_node("docs_agent", lambda s: docs_agent_node(s, docs_vs, cfg.doc_top_k))
-    graph.add_node("context_agent", lambda s: context_agent_node(s, ctx_vs, cfg.ctx_top_k))
-    graph.add_node("answer_agent", lambda s: answer_agent_node(s, model))
+    # TODO: change to constants
+    graph.add_node(PLAN_NODE, lambda s: plan_node(s, model))
+    graph.add_node(DOCS_AGENT_NODE, lambda s: docs_agent_node(s, docs_vs, cfg.doc_top_k))
+    graph.add_node(CONTEXT_AGENT_NOTE, lambda s: context_agent_node(s, ctx_vs, cfg.ctx_top_k))
+    graph.add_node(ANSWER_AGENT_NODE, lambda s: answer_agent_node(s, model))
 
-    graph.add_edge(START, "plan")
-    graph.add_edge("plan", "docs_agent")
-    graph.add_edge("docs_agent", "context_agent")
-    graph.add_edge("context_agent", "answer_agent")
-    graph.add_edge("answer_agent", END)
+    graph.add_edge(START, PLAN_NODE)
+    graph.add_edge(PLAN_NODE, DOCS_AGENT_NODE)
+    graph.add_edge(DOCS_AGENT_NODE, CONTEXT_AGENT_NOTE)
+    graph.add_edge(CONTEXT_AGENT_NOTE, ANSWER_AGENT_NODE)
+    graph.add_edge(ANSWER_AGENT_NODE, END)
     return graph.compile()

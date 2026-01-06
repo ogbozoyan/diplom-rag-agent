@@ -38,14 +38,16 @@ def _make_formatter( use_colors: bool ) -> logging.Formatter:
     if use_colors:
         try:
             from colorlog import ColoredFormatter  # type: ignore
-        except Exception:
+        except Exception as e:
+            print("Не удалось загрузить библиотеку colorlog")
             use_colors = False
 
     if use_colors:
         try:
             import colorama  # type: ignore
             colorama.just_fix_windows_console()
-        except Exception:
+        except Exception as e:
+            print("Не удалось загрузить библиотеку colorama")
             pass
 
         return ColoredFormatter(
@@ -89,10 +91,10 @@ def init_logging( level: str | int | None = None, use_colors: bool | None = None
         LOG_LEVEL: Переопределяет уровень логгирования (по умолчанию: INFO)
         LOG_COLOR: Управление цветом - "1" (всегда), "0" (никогда), "auto" (по умолчанию: только в TTY)
     """
-    lvl = (level or os.getenv("LOG_LEVEL", "DEBUG")).upper()
+    lvl = (level or os.getenv("LOG_LEVEL", "INFO")).upper()
 
     if use_colors is None:
-        env_color = os.getenv("LOG_COLOR", "auto").lower()
+        env_color = os.getenv("LOG_COLOR", "1").lower()
         use_colors = True if env_color == "1" else False if env_color == "0" else sys.stdout.isatty()
 
     handler = logging.StreamHandler(stream = sys.stdout)

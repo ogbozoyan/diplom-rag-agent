@@ -60,7 +60,7 @@ class AppConfig:
         ctx_top_k = int(os.getenv("CTX_TOP_K", "6"))
 
         vector_size = int(os.getenv("VECTOR_SIZE", "0"))  # set this to avoid probe for OpenAI
-        reindex = os.getenv("REINDEX", "true").lower() == "true"
+        reindex = os.getenv("REINDEX", "false").lower() == "true"
 
         chat_model = os.getenv("CHAT_MODEL", "openai:gpt-5-mini")
         temperature = float(os.getenv("TEMP", "0.5"))

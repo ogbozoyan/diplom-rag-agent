@@ -20,9 +20,9 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from app_config import AppConfig, HAS_BS4, HAS_DDG
-from app_config import HAS_PPTX
-from timer import timed
+from config.app_config import AppConfig, HAS_BS4, HAS_DDG
+from config.app_config import HAS_PPTX
+from helper.timer_helper import timed
 
 _log = logging.getLogger(__name__)
 
@@ -109,7 +109,7 @@ def load_documents_from_dir( root: Path ) -> list[Document]:
                     doc.metadata["source_file"] = string_path
                     page = doc.metadata.get("page", None)
                     if page is not None:
-                        _log.debug("AVAILABLE PDF METADATA %s for file %s", doc.metadata, string_path)
+                        _log.info("AVAILABLE PDF METADATA %s for file %s", doc.metadata, string_path)
                         doc.metadata["page_human"] = int(page) + 1
                 result_docs.extend(loaded)
 
@@ -121,7 +121,7 @@ def load_documents_from_dir( root: Path ) -> list[Document]:
                 loader: UnstructuredPowerPointLoader = UnstructuredPowerPointLoader(string_path, mode = "elements")
                 loaded: list[Document] = loader.load()
                 for doc in loaded:
-                    _log.debug("AVAILABLE PPTX METADATA %s for file %s", doc.metadata, string_path)
+                    _log.info("AVAILABLE PPTX METADATA %s for file %s", doc.metadata, string_path)
                     doc.metadata["source_file"] = string_path
                 result_docs.extend(loaded)
 
@@ -130,7 +130,7 @@ def load_documents_from_dir( root: Path ) -> list[Document]:
                     _log.info("Reading txt file: %s", path)
                     doc = Document(page_content = file.read(), metadata = { "source_file": string_path })
 
-                    _log.debug("AVAILABLE TXT METADATA %s for file %s", doc.metadata, string_path)
+                    _log.info("AVAILABLE TXT METADATA %s for file %s", doc.metadata, string_path)
                     result_docs.append(doc)
 
             elif path_suffix == ".md":
@@ -139,7 +139,7 @@ def load_documents_from_dir( root: Path ) -> list[Document]:
                 loader: UnstructuredMarkdownLoader = UnstructuredMarkdownLoader(string_path, mode = "elements")
                 loaded: list[Document] = loader.load()
                 for doc in loaded:
-                    _log.debug("AVAILABLE MARKDOWN METADATA %s for file %s", doc.metadata, string_path)
+                    _log.info("AVAILABLE MARKDOWN METADATA %s for file %s", doc.metadata, string_path)
                     doc.metadata["source_file"] = string_path
                 result_docs.extend(loaded)
 
@@ -166,7 +166,7 @@ def split_documents( docs: list[Document], chunk_size: int, chunk_overlap: int )
     return chunks
 
 
-def _clean_text( s: str ) -> str:
+def clean_text( s: str ) -> str:
     return re.sub(r"\s+", " ", s or "").strip()
 
 
@@ -183,9 +183,9 @@ def fetch_url_text( url: str, timeout_sec: int = 15 ) -> str:
         soup = BeautifulSoup(html, "lxml")
         for tag in soup(["script", "style", "noscript"]):
             tag.decompose()
-        return _clean_text(soup.get_text(" "))
+        return clean_text(soup.get_text(" "))
 
-    return _clean_text(re.sub(r"<[^>]+>", " ", html))
+    return clean_text(re.sub(r"<[^>]+>", " ", html))
 
 
 def web_retrieve_evidence(

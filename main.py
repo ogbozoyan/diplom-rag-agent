@@ -13,12 +13,12 @@ from langchain_postgres.v2.engine import PGEngine
 from langchain_postgres.v2.vectorstores import PGVectorStore
 from langgraph.graph.state import CompiledStateGraph
 
-from app_config import AppConfig
-from embedding import init_embeddings, resolve_vector_size
-from langgraph_state_nodes import build_graph, RAGState
-from logger_config import init_logging
-from pg_vector_helpers import psycopg_dsn_from_sqlalchemy, ensure_pgvector_store, ingest_incremental
-from timer import timed
+from agent.langgraph_state_nodes import build_graph, RAGState
+from config.app_config import AppConfig
+from config.logger_config import init_logging
+from embedding.embedding import init_embeddings, resolve_vector_size
+from helper.pg_vector_helpers import psycopg_dsn_from_sqlalchemy, ensure_pgvector_store, ingest_incremental
+from helper.timer_helper import timed
 
 init_logging()
 
@@ -104,6 +104,6 @@ def run( question: str ):
 if __name__ == "__main__":
     run(
         """
-            какие браузерные атаки существуют ? comet
+            Основная мысль: у RAG есть специфические угрозы: злоумышленник атакует не модель напрямую, а знания/индекс/политику retrieval, добиваясь утечек или управления ответом. Что перечислить (без глубоких мер — они пойдут в главу 2):RAG/content poisoning: внедрение “вредных” фрагментов в базу знаний.Indirect prompt injection через документы/веб-страницы.Retrieval hijacking: манипуляция релевантностью (чтобы “нужный” фрагмент всегда попадал в top-k).Несанкционированный доступ к векторной БД (ACL/тенанты/метаданные).Утечки через “слишком широкий контекст” + логирование/трассировки.
             """,
     )

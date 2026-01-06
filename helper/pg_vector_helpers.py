@@ -18,9 +18,9 @@ from psycopg import sql as psql
 from sqlalchemy import URL
 from sqlalchemy.engine import make_url
 
-from app_config import AppConfig
-from embedding import load_documents_from_dir, split_documents
-from timer import timed
+from config.app_config import AppConfig
+from embedding.embedding import load_documents_from_dir, split_documents
+from helper.timer_helper import timed
 
 _log = logging.getLogger(__name__)
 
